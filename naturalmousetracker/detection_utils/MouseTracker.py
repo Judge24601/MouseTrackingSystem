@@ -10,7 +10,6 @@ import cv2
 class MouseTracker:
     totalAllowedVis = 8
     kVelocityDiff = 0.01
-    kHistogramDiff = 0.5
 
     def __init__(self, startCoord, id, mask = [], frameCount = 0, width = 0, height = 0):
         self.currCoord = startCoord
@@ -30,7 +29,6 @@ class MouseTracker:
         self.canDoVisual = False
         self.validatedIndex = 0
         self.id = id
-        self.histogram = None
         self.lastFrameCount = 0
         self.velocity = (0,0)
         self.lostCounter= -1
@@ -56,23 +54,6 @@ class MouseTracker:
             self.visualCount += 1
             if self.visualCount > MouseTracker.totalAllowedVis:
                 self.stopVisualTracking()
-
-    def updateHistogram(self, image, pos=False, save=True):
-        if not pos:
-            x, y, _, _, w, h, = self.currCoord
-        else:
-            x,y,w,h = pos
-        xmin = int(round(x - (w / 2)))
-        xmax = int(round(x + (w / 2)))
-        ymin = int(round(y - (h / 2)))
-        ymax = int(round(y + (h / 2)))
-        image = image[ymin:ymax, xmin:xmax]
-        hist = cv2.calcHist([image], [0], None, [16],
-		      [0, 256])
-        hist = cv2.normalize(hist, hist).flatten()
-        if save:
-            self.histogram = hist
-        return hist
 
     def startVisualTracking(self, frame):
         self.visualTracker = cv2.TrackerCSRT_create()
@@ -137,6 +118,15 @@ class MouseTracker:
     def getPosition(self):
         return self.currCoord
 
+    def describeSelf(self):
+        try:
+            return [self.id, self.currCoord[0], self.currCoord[1], self.currCoord[4], self.currCoord[5]]
+        except IndexError:
+            try:
+                return [self.id, self.currCoord[0], self.currCoord[1]]
+            except IndexError:
+                return [self.id]
+
     def distanceFromPos(self, pos):
         x1 = self.currCoord[0]
         y1 = self.currCoord[1]
@@ -179,10 +169,6 @@ class MouseTracker:
         new_vel = (pos[0] - self.currCoord[0], pos[1] - self.currCoord[1])
         del_vel = np.sqrt((new_vel[0] - self.velocity[0])**2 +
                     (new_vel[1] - self.velocity[1])**2)
-        # print(self.id, 'old:', self.velocity, 'new', new_vel, 'delta', del_vel)
-        # new_hist = self.updateHistogram(image, pos=pos, save=False)
-        # del_hist = cv2.compareHist(new_hist, self.histogram, cv2.HISTCMP_BHATTACHARYYA)
-        # print(del_hist)
         return IOU - MouseTracker.kVelocityDiff*del_vel
 
     def tag(self):
